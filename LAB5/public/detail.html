@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>인프밍 영화 정보 사이트</title>
+  <link rel="stylesheet" href="main.css">
+</head>
+<body>
+  <div class="container">
+    <!-- 헤더 + 네비게이션 -->
+    <header>
+      <h1 class="site-title">인프밍 영화 정보 사이트입니다.</h1>
+      <nav class="nav-bar">
+        <a href="index.html" class="active">메인페이지</a>
+        <a href="login.html">로그인</a>
+        <a href="signup.html">회원가입</a>
+      </nav>
+    </header>
+    <hr class="divider">
+
+    <!-- 영화 상세 정보 카드 -->
+    <main id="movieDetail" class="detail-container">
+      <p>로딩 중...</p>
+    </main>
+
+    <!-- 후기 섹션 -->
+    <section class="comments-section">
+      <h3>🎞️ 영화 후기</h3>
+      <ul id="commentList" class="comment-list">
+        <li>로딩 중...</li>
+      </ul>
+      <form id="commentForm">
+        <textarea id="commentText" rows="3" placeholder="후기를 작성하세요" required></textarea>
+        <button type="submit">댓글 남기기</button>
+      </form>
+    </section>
+
+    <div class="button-group">
+      <a href="index.html"><button>← 메인으로 돌아가기</button></a>
+    </div>
+  </div>
+
+  <script>
+  (function() {
+    // 1) 쿼리스트링에서 movieId 파싱
+    const params  = new URLSearchParams(window.location.search);
+    const movieId = params.get('id');
+
+    const detailEl = document.getElementById('movieDetail');
+    if (!movieId || isNaN(movieId)) {
+      detailEl.innerHTML = '<p>잘못된 영화 ID입니다.</p>';
+      return;
+    }
+    console.log('🔍 movieId =', movieId);
+
+    // 2) 포스터 URL 처리 함수
+    const getPosterURL = path =>
+      path?.startsWith('http')
+        ? path
+        : 'https://image.tmdb.org/t/p/w300' + path;
+
+    // 3) 영화 정보 불러오기
+    fetch(`/api/movies/${movieId}`)
+      .then(res => {
+        if (!res.ok) throw new Error(`Status ${res.status}`);
+        return res.json();
+      })
+      .then(movie => {
+        detailEl.innerHTML = `
+          <div class="detail-poster">
+            <img src="${getPosterURL(movie.img)}"
+                alt="${movie.movie_title}">
+          </div>
+          <div class="detail-info">
+            <p>영화 id: ${movie.movie_id}</p>
+            <h2>🎥 ${movie.movie_title}</h2>
+            <p><span class="label">🎬 개봉일:</span> ${movie.release_date}</p>
+            <p><span class="label">★ 평점:</span> ${movie.rate}</p>
+            <p><span class="label">📋 줄거리:</span> ${movie.overview}</p>
+          </div>
+        `;
+      })
+      .catch(err => {
+        console.error(err);
+        detailEl.innerHTML = '<p>영화 정보를 불러오는 데 실패했습니다.</p>';
+      });
+
+    // 4) 후기(댓글) 불러오기
+    const commentList = document.getElementById('commentList');
+    function loadComments() {
+      fetch(`/api/movies/${movieId}/comments`)
+        .then(res => {
+          if (!res.ok) throw new Error(`Status ${res.status}`);
+          return res.json();
+        })
+        .then(comments => {
+          commentList.innerHTML = comments.length
+            ? comments.map(c => `
+                <li data-id="${c.review_id}">
+                  <p>${c.review_content}</p>
+                </li>
+              `).join('')
+            : '<li>아직 남은 후기가 없습니다.</li>';
+        })
+        .catch(err => {
+          console.error('댓글 불러오기 실패:', err);
+          commentList.innerHTML = '<li>댓글을 불러오는 중 오류가 발생했습니다.</li>';
+        });
+    }
+    loadComments();
+
+    // 새 댓글 등록
+    document.getElementById('commentForm')
+      .addEventListener('submit', e=>{
+        e.preventDefault();
+        const text = document.getElementById('commentText').value.trim();
+        if (!text) return;
+        fetch(`/api/movies/${movieId}/comments`, {
+          method: 'POST',
+          headers: {'Content-Type':'application/json'},
+          body: JSON.stringify({ text })
+        })
+        .then(res => {
+          if (!res.ok) throw new Error(`Status ${res.status}`);
+          document.getElementById('commentText').value = '';
+          return res.json();
+        })
+        .then(_ => loadComments())
+        .catch(err=>{
+          console.error('댓글 저장 실패:', err);
+          alert('댓글 저장에 실패했습니다.');
+        });
+      });
+  })();
+  </script>
+</body>
+</html>

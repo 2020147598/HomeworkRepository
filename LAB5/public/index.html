@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>인프밍 영화 정보 사이트</title>
+  <link rel="stylesheet" href="main.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1 class="site-title">인프밍 영화 정보 사이트</h1>
+      <nav class="nav-bar">
+        <a href="index.html">메인페이지</a>
+        <a href="login.html">로그인</a>
+        <a href="signup.html">회원가입</a>
+      </nav>
+    </header>
+
+    <main class="main-content">
+      <section class="movies">
+        <div class="search-panel">
+          <input type="text" id="searchInput" placeholder="키워드를 입력하세요." />
+          <button id="filterBtn">검색 결과</button>
+        </div>
+        <h2 class="movies-title">영화 목록</h2>
+        <div class="movies-flex">
+          <div class="sort-panel">
+            <h3>정렬 기준</h3>
+            <label><input type="radio" name="sort" value="rating_desc" checked> 평점 내림차순</label><br>
+            <label><input type="radio" name="sort" value="rating_asc"> 평점 오름차순</label><br>
+            <label><input type="radio" name="sort" value="date_desc"> 개봉일 내림차순</label><br>
+            <label><input type="radio" name="sort" value="date_asc"> 개봉일 오름차순</label>
+          </div>
+          <div class="movie-list" id="movieList"></div>
+        </div>
+        <div id="scrollObserver"></div>
+      </section>
+    </main>
+  </div>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      const movieListEl = document.getElementById('movieList');
+      const observerEl  = document.getElementById('scrollObserver');
+      const searchInput = document.getElementById('searchInput');
+      const filterBtn   = document.getElementById('filterBtn');
+      const sortRadios  = document.querySelectorAll('.sort-panel input[name="sort"]');
+
+      let allMovies = [], filtered = [], currentIndex = 0;
+      const increment  = 5;
+      const minInitial = 3;
+
+      const observer = new IntersectionObserver(entries => {
+        entries.forEach(entry => {
+          if (entry.isIntersecting) {
+            renderMovies(increment);
+            if (currentIndex >= filtered.length) observer.unobserve(observerEl);
+          }
+        });
+      }, { rootMargin: '200px' });
+
+      filterBtn.addEventListener('click', applyFilters);
+      searchInput.addEventListener('input', applyFilters);
+      sortRadios.forEach(r => r.addEventListener('change', applyFilters));
+
+      const getImgURL = (path) => {
+        if (!path) return '';
+        // DB에 절대 URL이 들어 있다면 아래 조건문만으로 OK
+        return path.startsWith('http') ? path : 'https://image.tmdb.org/t/p/w185' + path;
+      };
+
+      function applyFilters() {
+        const keyword = searchInput.value.trim().toLowerCase();
+        const mode    = Array.from(sortRadios).find(r => r.checked).value;
+
+        filtered = allMovies.filter(item => {
+          const t = (item.movie_title || '').toLowerCase();
+          const g = (item.genres || '').toLowerCase();
+          return t.includes(keyword) || g.includes(keyword);
+        });
+
+        filtered.sort((a, b) => {
+          if (mode === 'rating_desc') return b.rate - a.rate;
+          if (mode === 'rating_asc')  return a.rate - b.rate;
+          if (mode === 'date_desc')   return new Date(b.release_date) - new Date(a.release_date);
+          if (mode === 'date_asc')    return new Date(a.release_date) - new Date(b.release_date);
+          return 0;
+        });
+
+        currentIndex = 0;
+        movieListEl.innerHTML = '';
+        observer.unobserve(observerEl);
+        renderMovies(Math.max(minInitial, increment));
+        if (currentIndex < filtered.length) observer.observe(observerEl);
+      }
+
+      function renderMovies(count) {
+        const fragment = document.createDocumentFragment();
+        const end = Math.min(currentIndex + count, filtered.length);
+
+        for (; currentIndex < end; currentIndex++) {
+          const item       = filtered[currentIndex];
+          const title      = item.movie_title       || '제목 없음';
+          const rating     = item.rate != null ? item.rate : '평가 없음';
+          const genresText = item.genres      || '장르 정보 없음';
+          const overview   = item.overview    || '줄거리 정보 없음';
+          const poster     = getImgURL(item.img);
+
+          const card = document.createElement('div');
+          card.className = 'movie-card';
+          card.innerHTML = `
+            <a href="detail.html?id=${item.movie_id}">
+              <img src="${poster}" alt="${title}">
+              <div class="card-overlay">${overview}</div>
+              <div class="card-footer">
+                <h3 class="card-title">${title}</h3>
+                <div class="card-meta">
+                  <span class="rating">★ ${rating}</span>
+                  <ul class="genres">
+                    ${genresText.split(', ').map(g => `<li>${g}</li>`).join('')}
+                  </ul>
+                </div>
+              </div>
+            </a>
+          `;
+          fragment.appendChild(card);
+        }
+        movieListEl.appendChild(fragment);
+      }
+
+      fetch('/api/movies')
+        .then(res => res.json())
+        .then(data => {
+          allMovies = data;
+          applyFilters();
+        })
+        .catch(err => {
+          console.error('영화 데이터 불러오기 실패:', err);
+          movieListEl.innerHTML = '<p>데이터를 불러오는 데 실패했습니다.</p>';
+        });
+    });
+  </script>
+</body>
+</html>
