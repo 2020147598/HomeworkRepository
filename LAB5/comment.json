@@ -1,0 +1,14 @@
+[
+  {
+    "review_id": 5,
+    "movie_id": 4,
+    "review_content": "꿀잼!!",
+    "createdAt": "2025-06-13T17:12:45.635Z"
+  },
+  {
+    "review_id": 6,
+    "movie_id": 2,
+    "review_content": "I love this movie",
+    "createdAt": "2025-06-13T17:24:52.254Z"
+  }
+]
